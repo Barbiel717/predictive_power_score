@@ -1,0 +1,127 @@
+---
+title: "Untitled"
+author: "registea"
+date: "13/07/2020"
+output: github_document
+---
+
+
+<center><img src="https://storage.googleapis.com/kaggle-competitions/kaggle/5407/media/housesbanner.png"></center>
+
+
+<style type="text/css"> 
+
+body{ /* Normal  */ 
+      font-size: 14px; 
+  } 
+td {  /* Table  */ 
+  font-size: 12px; 
+} 
+h1.title { 
+  font-size: 38px; 
+  color: Red; 
+} 
+h1 { /* Header 1 */ 
+  font-size: 30px; 
+  color: Red; 
+} 
+h2 { /* Header 2 */ 
+    font-size: 26px; 
+  color: Red; 
+} 
+h3 { /* Header 3 */ 
+  font-size: 22px; 
+  font-family: "Aerial", Times, serif; 
+  color: Red; 
+} 
+code.r{ /* Code block */ 
+    font-size: 14px; 
+} 
+pre { /* Code block - determines code spacing between lines */ 
+    font-size: 14px; 
+} 
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This notebook is dedicated to exploring the feature selection aspect of the predictive modelling workflow. Specifically the Predictive Power Score (PPS) created by Florian Wetschoreck and posted on [Medium](https://towardsdatascience.com/rip-correlation-introducing-the-predictive-power-score-3d90808b9598).
+
+The house price prediction [dataset](https://www.kaggle.com/c/house-prices-advanced-regression-techniques) from kaggle is used as it represents a wide range of attributes of houses and their sale price, with the objective to predict the house price as accurately as possible using the RMSE evaluation metric. This dataset is almost perfect for exploring the PPS as the dataset is relatively large from a dimensional perspective but relatively small with regards to observations.
+
+This notebook will skip the exploratory analysis and feature engineering and jump straight to applying the PPS. If you are interested in seeing an exploratory analysis on this dataset, please follow this link to my kaggle [kernal](https://www.kaggle.com/ar89dsl/house-price-eda-predictive-power-score).
+
+```{r warning = FALSE, message = FALSE}
+
+# Modelling Framework
+library(tidymodels) # Predictive Framework
+library(caret)# Predictive Framework
+
+# Predictive Algorithms
+library(glmnet) # Glmnet regression
+library(rpart) # Decision Trees
+library(ranger) # Random Forests
+library(xgboost) # Gradient Boosting Machines
+library(kernlab) # SVR 
+
+# Statistical functionality
+library(e1071) # Summary distribution
+library(skimr) # Summarise dataframe
+library(naniar) # Missing data summary
+
+# Visualisations and formatting
+library(scales) # Number formats
+library(knitr) # Table
+library(gridExtra) # multiplot
+library(corrplot) # Correlation plot
+
+# Data handling Packages
+library(tidyverse) # Data handling/ Graphics
+library(data.table) # Data handling
+
+# Optimisation packages
+library(ompr) # MILP wrapper
+library(ROI) # Solver interface
+library(ROI.plugin.lpsolve)
+library(ompr.roi) # Link ROI and OMPR
+library(GA) # Genetic algorithm for feature selection
+
+# Parallel Processing
+library(parallel)
+library(doParallel)
+
+# Special transforms
+library(bestNormalize)
+```
+
+
+# Data Loading
+
+Using the fread function from data.table, the training and testing data will be stored into a single dataframe called df_model. The variable 'SalesPrice' is the target variable and as it does not exist in the testing data it will be set to NA. An additional flag variable will be created 'testflag' to distinguish between training and testing sets. Further to this all variable names will be coverted to lower case for personal preference.  
+
+
+```{r warning = FALSE, message = FALSE}
+
+# Load and combine training and testing data
+df_model <- 
+  rbind(
+      # Load training data
+      fread("C:/Users/Anthony/Documents/Git/Project Portfolio/predictive_power_score/train.csv") 
+          %>% mutate(testflag = "train"), # Add flag variable
+      
+      # Load training data
+      fread("C:/Users/Anthony/Documents/Git/Project Portfolio/predictive_power_score/test.csv") %>% 
+          mutate(SalePrice = NA, # add SalePice variable
+                 testflag = "test") # add flag variable 
+      ) %>% 
+  set_names(., tolower(names(.))) %>% # Convert all names to lower case
+  select(-id) # Remove house id variable
+
+```
+
+
+
+
