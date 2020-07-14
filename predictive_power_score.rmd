@@ -28,6 +28,7 @@ library(caret)# Predictive Framework
 # Visualisations and formatting
 library(scales) # Number formats
 library(knitr) # Table
+library(e1071) # Stats
 
 # Data handling Packages
 library(tidyverse) # Data handling/ Graphics
@@ -40,13 +41,7 @@ library(ROI.plugin.lpsolve)
 library(ompr.roi) # Link ROI and OMPR
 ```
 
-
-# Data Loading
-
-Using the fread function from data.table, the training and testing data will be stored into a single dataframe called df_model. The variable 'SalesPrice' is the target variable and as it does not exist in the testing data it will be set to NA. An additional flag variable will be created 'testflag' to distinguish between training and testing sets. Further to this all variable names will be coverted to lower case for personal preference.  
-
-
-```{r data_load, warning = FALSE, message = FALSE}
+```{r data_load, warning = FALSE, message = FALSE, echo=FALSE}
 
 # Load and combine training and testing data
 df_model <- 
@@ -65,12 +60,43 @@ df_model <-
 
 ```
 
-# Feature Selection
+# Exploring the target Variable 'saleprice'
 
-A large feature set can have a significant impact on computation time and redundant features can have adverse effects on model performance. Some algorithms have feature selection/ dimensionality reduction included as part of the model development e.g. GLMNET. However, other methods such as multiple regression will need a helping hand. Feature selection can also aid in more advanced applications such as tree based methods. The PPS is a filter method,w
+The histogram shows the distribution of the 'saleprice' variable across all house sales. We can see that the majority of houses are around 150k in price, this is confirmed by calculating the median which sits at `r format(median(df_model$saleprice, na.rm = T)/ 1000, big.mark = ",")`k. The data has a long tail to the right, indicating that there are a small number of high priced houses. The skewness of house prices is `r round(skewness(df_model$saleprice, na.rm = T), 2)`, as this is above 1 it indicates that the data is highly positively skewed.
 
-* Filter method: Predictive Power Score (PPS) - This will be applied during engineering and pre-processing steps to assess the predictive power of new variables. It will also be used to choose between correlated predictors in linear regression
-* Global method: Genetic Algorithms (GA) - Applied to the overall model build and evaluation process for linear regression model to give it a fighting chance
+```{r echo = FALSE, warning = FALSE, message = FALSE, fig.align="center"}
+
+# Visualise the distribution of house price
+df_model %>%
+  ggplot(aes(x = saleprice)) +
+  geom_histogram(fill = "blue") +
+  scale_x_continuous(breaks= seq(0, 800000, by=50000), labels = scales::comma) +
+  labs(y = "Houses") +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 90)) +
+  ggtitle("Distribution of House Prices")
+
+```
+
+Applying a log transformation to the 'saleprice' variable makes the the data more symetrical and reduces the skew to `r round(skewness(log(df_model$saleprice), na.rm = T), 2)`. A skewness value between 0 and 0.5 indicates it is now minimally skewed. This can be visualised below in the historgram, in which the distribution appears to be a closer representation of a normal distribution. The log transformation has been explored here but will be applied in a later section.
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, fig.align="center"}
+
+# log transformed distribution
+ggplot(df_model, aes(log(saleprice))) +
+        geom_blank() +
+        geom_histogram(aes(y = ..density..), fill = "blue") +
+        stat_function(fun = dnorm, 
+                      args = c(mean = mean(log(df_model$saleprice), na.rm = TRUE), 
+                               sd = sd(log(df_model$saleprice), na.rm = TRUE)), 
+                      col = "red",
+                      size = 2) +
+  scale_x_continuous(breaks= seq(10, 14, by=0.5)) +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 90)) +
+  labs(x = "saleprice (log)") +
+  ggtitle("Log transformed Distribution of House Prices")
+```
 
 
 

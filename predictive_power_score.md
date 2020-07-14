@@ -30,47 +30,24 @@ in a full analysis of this dataset, then please follow this link to my
 kaggle
 [kernal](https://www.kaggle.com/ar89dsl/house-price-eda-predictive-power-score).
 
-# Data Loading
+# Exploring the target Variable ‘saleprice’
 
-Using the fread function from data.table, the training and testing data
-will be stored into a single dataframe called df\_model. The variable
-‘SalesPrice’ is the target variable and as it does not exist in the
-testing data it will be set to NA. An additional flag variable will be
-created ‘testflag’ to distinguish between training and testing sets.
-Further to this all variable names will be coverted to lower case for
-personal preference.
+The histogram shows the distribution of the ‘saleprice’ variable across
+all house sales. We can see that the majority of houses are around 150k
+in price, this is confirmed by calculating the median which sits at
+163k. The data has a long tail to the right, indicating that there are a
+small number of high priced houses. The skewness of house prices is
+1.88, as this is above 1 it indicates that the data is highly positively
+skewed.
 
-``` r
-# Load and combine training and testing data
-df_model <- 
-  rbind(
-      # Load training data
-      fread("C:/Users/Anthony/Documents/Git/Project Portfolio/predictive_power_score/train.csv") 
-          %>% mutate(testflag = "train"), # Add flag variable
-      
-      # Load training data
-      fread("C:/Users/Anthony/Documents/Git/Project Portfolio/predictive_power_score/test.csv") %>% 
-          mutate(SalePrice = NA, # add SalePice variable
-                 testflag = "test") # add flag variable 
-      ) %>% 
-  set_names(., tolower(names(.))) %>% # Convert all names to lower case
-  select(-id) # Remove house id variable
-```
+<img src="predictive_power_score_files/figure-gfm/unnamed-chunk-1-1.png" style="display: block; margin: auto;" />
 
-# Feature Selection
+Applying a log transformation to the ‘saleprice’ variable makes the the
+data more symetrical and reduces the skew to 0.12. A skewness value
+between 0 and 0.5 indicates it is now minimally skewed. This can be
+visualised below in the historgram, in which the distribution appears to
+be a closer representation of a normal distribution. The log
+transformation has been explored here but will be applied in a later
+section.
 
-A large feature set can have a significant impact on computation time
-and redundant features can have adverse effects on model performance.
-Some algorithms have feature selection/ dimensionality reduction
-included as part of the model development e.g. GLMNET. However, other
-methods such as multiple regression will need a helping hand. Feature
-selection can also aid in more advanced applications such as tree based
-methods. The PPS is a filter method,w
-
-  - Filter method: Predictive Power Score (PPS) - This will be applied
-    during engineering and pre-processing steps to assess the predictive
-    power of new variables. It will also be used to choose between
-    correlated predictors in linear regression
-  - Global method: Genetic Algorithms (GA) - Applied to the overall
-    model build and evaluation process for linear regression model to
-    give it a fighting chance
+<img src="predictive_power_score_files/figure-gfm/unnamed-chunk-2-1.png" style="display: block; margin: auto;" />
