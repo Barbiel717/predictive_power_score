@@ -125,6 +125,108 @@ df_model <-
            garageyrblt = ifelse(garageyrblt == 2207, 2007, garageyrblt),
            exterior2nd = ifelse(exterior2nd == "Brk Cmn", "BrkComm", exterior2nd),
            exterior2nd = ifelse(exterior2nd == "Wd Shng", "Wd Sdng", exterior2nd))
+
+# Replace the bounds for outliers
+f_outlier <-
+  function(variable, focus)
+  {
+    
+    # Calculate IQR
+    IQR <- 
+      (quantile(variable, 0.75, na.rm = T) - 
+       quantile(variable, 0.25, na.rm = T)
+       ) * 1.5
+    
+    # Calculate UB or LB
+    if(focus == "UB")
+    {
+      bound <- IQR + quantile(variable, 0.75, na.rm = T) # Calculate bound
+      variable <- ifelse(variable > bound & variable != 0, bound, variable) # Truncate variable
+    } else if (focus == "LB") {
+      bound <- quantile(variable, 0.25, na.rm = T) - IQR # Calculate bound
+      variable <- ifelse(variable < bound & variable != 0, bound, variable) # Truncate variable
+    } else {
+      bound <- IQR + quantile(variable, 0.75, na.rm = T) # defaults to upper bound
+      variable <- ifelse(variable > bound & variable != 0, bound, variable)  # Truncate variable
+    }
+  }
+
+
+# Create an object using the bestNormalize package
+yeojohnson_obj <- 
+  bestNormalize::yeojohnson(df_model %>%
+               filter(testflag == "train") %>%
+               select(saleprice) %>%
+               unlist() %>%
+               as.numeric(), 
+             standardize = FALSE)
+
+# Create function to switch between data scales
+f_target_transform <-
+  function(vector, yeojohnson_obj, invert_flag)
+  {
+    
+    if(invert_flag == FALSE) 
+    {
+      ifelse(is.na(vector), NA, log(predict(yeojohnson_obj, newdata = vector)))
+
+    } else {
+      
+      ifelse(is.na(vector), NA, predict(yeojohnson_obj, newdata = exp(vector), inverse = T))
+    }
+  }
+
+# Apply transformation to target variable
+df_model$saleprice <- f_target_transform(df_model$saleprice, yeojohnson_obj, FALSE)
+
+# Apply series of pre-processing steps
+df_model <-
+  df_model %>%
+    mutate(yrsold = factor(yrsold),
+           mosold = factor(mosold),
+           mssubclass = factor(mssubclass),
+           overallcond = factor(overallcond),
+           bsmtfinsf1 = f_outlier(variable = bsmtfinsf1, focus = "UB"),
+           garagearea = f_outlier(variable = garagearea, focus = "UB"),
+           grlivarea = f_outlier(variable = grlivarea, focus = "UB"),
+           lotarea = f_outlier(variable = lotarea, focus = "UB"),
+           lotfrontage = f_outlier(variable = lotfrontage, focus = "UB"),
+           miscval = f_outlier(variable = miscval, focus = "UB")
+           )
+
+# Variables with skew
+vc_skew <-
+  sapply(df_model %>% 
+                 filter(!is.na(saleprice)) %>%
+                 select_if(is.numeric),
+               function(x) skewness(x, na.rm = T)) %>%
+          as.data.frame() %>%
+          rownames_to_column() %>%
+          rename(variable = rowname,
+                 skew = ".") %>%
+          filter(skew > 1 | skew < -1 & variable != "saleprice") %>%
+          arrange(desc(skew)) %>%
+          select(variable) %>%
+          unlist() %>%
+          as.character()
+
+# Recipes pre-processing steps
+df_model <-
+  df_model %>%
+    recipe(saleprice ~ .) %>%
+    step_medianimpute(all_numeric(), -all_outcomes()) %>% # median impute numeric data
+    step_modeimpute(all_nominal(), -all_outcomes()) %>% # mode impute nominal data
+    step_YeoJohnson(vc_skew) %>%  # Increase symmetry
+    step_normalize(all_numeric(), -all_outcomes()) %>% # centre & scale
+    step_dummy(all_nominal(), -all_outcomes()) %>% # Convert to dummy variables
+    step_zv(all_predictors()) %>% # Remove zero variance
+    prep() %>%
+    bake(df_model)
+
+# remove object
+rm(vc_skew, f_outlier)
+
+
 ```
 
 # Feature Selection via Feature Importance
@@ -327,7 +429,7 @@ f_PPS <-
 
 ```
 
-Now that we have a PPS function set-up, the output can be tested on a handful of variables. A quick visual correlation analysis is run on the numerical variables to choose some variables which exhibit strong and weak linear relationships.
+Now that we have a PPS function set-up, the output can be tested on a couple of variables. A quick visual correlation analysis is run on the numerical variables to choose some variables which exhibit strong and weak linear relationships.
 
 ```{r echo = FALSE, warning = FALSE, message = FALSE, fig.align="center", fig.height=12, fig.width=12}
 
@@ -357,7 +459,7 @@ The following two variables are chosen:
 * overallqual: Numerical variable which plot indicates strong positive correlation
 * miscval: Numerical variable which the plot indicates near zero variance
 
-The table below shows that none of the variables in their own right have a particularly high PPS score. However, the two variables indentified as being important (overallqual, garagefinish) seem to have a relatively high score, while miscval and utilities are virtually 0.
+The table below shows that none of the variables in their own right have a particularly high PPS score. However, the variable indentified as being important (overallqual) seem to have a relatively high score, while miscval is virtually 0.
 
 ```{r test_pps, echo = FALSE, warning = FALSE, message = FALSE}
 
@@ -396,5 +498,48 @@ sapply(df_model %>%
 rm(df_target)
 
 ```
+
+# Model Building
+
+Now that we have a PPS function, each predictor will be scored using it's methodology. The predictors with the top scores will be retained and entered into a linear regression model.
+
+```{r full_pps, echo = FALSE, warning = FALSE, message = FALSE}
+system.time({
+  
+  # Isolate saleprice in training data  
+  df_target <- 
+    df_model %>% 
+    filter(!is.na(saleprice)) %>% 
+    mutate(saleprice = log(saleprice)) %>%
+    select(saleprice)
+  
+  # Calculate PPS
+  df_pps_full <-
+  sapply(df_model %>% 
+           filter(!is.na(saleprice)) %>%
+           select(-saleprice)
+           ,
+         function(var)
+           f_PPS(predictor = var, # predictor variable
+                 target = df_target$saleprice, # target variable
+                 model_mode = "regression", # regression or classification
+                 evaluation_metric = "rmse", # prediction evaluation metrics
+                 LB = 0, # Lower Bound e.g. RMSE perfect score is 0
+                 grid_size = 5, # Size of tuning grid
+                 folds = 10 # Folds in cross validation
+                 )
+         ) %>%
+    as.data.frame() %>%
+    rownames_to_column() %>%
+    rename(Variable = rowname,
+           PPS = ".") %>%
+    mutate(PPS = percent(round(PPS,3))) 
+  
+  # Remove PPS
+  rm(df_target)
+})
+```
+
+
 
 
