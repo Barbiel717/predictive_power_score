@@ -280,25 +280,111 @@ f_PPS <-
 ```
 
 Now that we have a PPS function set-up, the output can be tested on a
-handful of variables. A quick visual correlation analysis is run on the
+couple of variables. A quick visual correlation analysis is run on the
 numerical variables to choose some variables which exhibit strong and
 weak linear relationships.
 
-<img src="predictive_power_score_files/figure-gfm/unnamed-chunk-1-1.png" style="display: block; margin: auto;" />
+<img src="predictive_power_score_files/figure-gfm/corr_plot-1.png" style="display: block; margin: auto;" />
 
 The following two variables are chosen:
 
   - overallqual: Numerical variable which plot indicates strong positive
     correlation
-  - miscval: Numerical variable which the EDA indicated near zero
+  - miscval: Numerical variable which the plot indicates near zero
     variance
 
 The table below shows that none of the variables in their own right have
-a particularly high PPS score. However, the two variables indentified as
-being important (overallqual, garagefinish) seem to have a relatively
-high score, while miscval and utilities are virtually 0.
+a particularly high PPS score. However, the variable indentified as
+being important (overallqual) seem to have a relatively high score,
+while miscval is virtually 0.
 
 |  Variable   |  PPS  |
 | :---------: | :---: |
-| overallqual | 42.5% |
-|   miscval   | 0.2%  |
+| overallqual | 41.7% |
+| bsmtfinsf2  | 0.2%  |
+
+# Understanding Feature Importance
+
+Now that we have a PPS function, each predictor will be scored using
+it’s methodology. The code below applies each predictor to the PPS
+function. The output below shows that the implementation of the PPS
+function took over 30 minutes, this is relatively resource heavy
+compared to other filter methods e.g. correlation.
+
+``` r
+system.time({
+  
+  # Isolate saleprice in training data  
+  df_target <- 
+    df_model %>% 
+    filter(!is.na(saleprice)) %>% 
+    mutate(saleprice = log(saleprice)) %>%
+    select(saleprice)
+  
+  # Calculate PPS
+  df_pps_full <-
+  sapply(df_model %>% 
+           filter(!is.na(saleprice)) %>%
+           select(-saleprice)
+           ,
+         function(var)
+           f_PPS(predictor = var, # predictor variable
+                 target = df_target$saleprice, # target variable
+                 model_mode = "regression", # regression or classification
+                 evaluation_metric = "rmse", # prediction evaluation metrics
+                 LB = 0, # Lower Bound e.g. RMSE perfect score is 0
+                 grid_size = 5, # Size of tuning grid
+                 folds = 5 # Folds in cross validation
+                 )
+         ) %>%
+    as.data.frame() %>%
+    rownames_to_column() %>%
+    rename(Variable = rowname,
+           PPS = ".")
+  
+  # Remove PPS
+  rm(df_target)
+})
+```
+
+    ##    user  system elapsed 
+    ##  812.93    1.43  868.72
+
+The plot below shows the distribution of PPS against the predictors in
+the dataset. The most common PPS scores is around 0%, indicating that 16
+variables have no predictive power, using this methodology. On a
+relative scale between 0 and the best PPS of 0.42, there are 19
+predictors with relatively strong predictive power.
+
+![](predictive_power_score_files/figure-gfm/dist_pps-1.png)<!-- -->
+
+Using PPS we are able to isolate the explanatory variables with the most
+predictive power, these can be seen in the table below.
+
+|   Variable   |  PPS  |
+| :----------: | :---: |
+| overallqual  | 41.7% |
+|  grlivarea   | 30.3% |
+| neighborhood | 29.5% |
+|  garagecars  | 27.7% |
+|  exterqual   | 25.7% |
+|   bsmtqual   | 25.2% |
+|  garagearea  | 25.1% |
+
+# Conclusion
+
+After reviewing the PPS mechanism, my thoughts are:
+
+  - The PPS is a conceptually simple idea, but effective at relaying a
+    non-symetrical relationship between pairs of variables
+  - I found it useful that it provides a unified score against both
+    numeric and categorical predictors
+  - PPS sits on a scale of 0 - 1, but it is not immediately clear what a
+    good or bad score is. In our example, the best score was 42%
+  - While my implementation of the PPS could be hugely optimised, it is
+    still a lot slower than comparative filter functions and this is a
+    consideration when working with larger datasets
+  - Some advanced model methodologies, such as Random Forest are slow to
+    build. Reducing the input dataset, using an approach like PPS could
+    significantly improve the speed of the overall model building
+    process

@@ -499,11 +499,11 @@ rm(df_target)
 
 ```
 
-# Model Building
+# Understanding Feature Importance
 
-Now that we have a PPS function, each predictor will be scored using it's methodology. The predictors with the top scores will be retained and entered into a linear regression model.
+Now that we have a PPS function, each predictor will be scored using it's methodology. The code below applies each predictor to the PPS function. The output below shows that the implementation of the PPS function took over 30 minutes, this is relatively resource heavy compared to other filter methods e.g. correlation.
 
-```{r full_pps, echo = FALSE, warning = FALSE, message = FALSE}
+```{r full_pps, warning = FALSE, message = FALSE}
 system.time({
   
   # Isolate saleprice in training data  
@@ -539,20 +539,45 @@ system.time({
 })
 ```
 
+The plot below shows the distribution of PPS against the predictors in the dataset. The most common PPS scores is around 0%, indicating that 16 variables have no predictive power, using this methodology. On a relative scale between 0 and the best PPS of 0.42, there are 19 predictors with relatively strong predictive power. 
 
-```{r full_pps, echo = FALSE, warning = FALSE, message = FALSE}
+```{r dist_pps, echo = FALSE, warning = FALSE, message = FALSE}
 
 # visualise distirbution of pps
 df_pps_full %>%
-  ggplot(aes(x = "PPS", y = PPS)) +
-    geom_boxplot(fill = "red")  +
+  ggplot(aes(x = PPS)) +
+    geom_histogram(fill = "red")  +
     theme(axis.text.x = element_text(angle = 90),
-          plot.title = element_text(hjust = 0.5,
-                                    size = 20)) + 
-    ggtitle("Predictor Distribution of PPS")
-
-
-
+          plot.title = element_text(hjust = 0.5)) + 
+    scale_x_continuous(labels = scales::percent,
+                       breaks = seq(0,50,2) / 100) +
+    scale_y_continuous(breaks = seq(0,20,2)) +
+    ggtitle("PPS Distribution - by Predictors")
 
 ```
+
+Using PPS we are able to isolate the explanatory variables with the most predictive power, these can be seen in the table below.
+
+```{r table_pps, echo = FALSE, warning = FALSE, message = FALSE}
+
+# visualise distirbution of pps
+df_pps_full %>%
+  filter(PPS > 0.25) %>%
+  arrange(desc(PPS)) %>%
+  mutate(PPS = percent(round(PPS,3))) %>%
+  kable(align= c('c','c'))
+
+```
+
+# Conclusion
+
+After reviewing the PPS mechanism, my thoughts are:
+
+* The PPS is a conceptually simple idea, but effective at relaying a non-symetrical relationship between pairs of variables
+* I found it useful that it provides a unified score against both numeric and categorical predictors
+* PPS sits on a scale of 0 - 1, but it is not immediately clear what a good or bad score is. In our example, the best score was 42%
+* While my implementation of the PPS could be hugely optimised, it is still a lot slower than comparative filter functions and this is a consideration when working with larger datasets
+* Some advanced model methodologies, such as Random Forest are slow to build. Reducing the input dataset, using an approach like PPS could significantly improve the speed of the overall model building process
+
+
 
