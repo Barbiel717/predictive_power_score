@@ -278,3 +278,27 @@ f_PPS <-
 
     }
 ```
+
+Now that we have a PPS function set-up, the output can be tested on a
+handful of variables. A quick visual correlation analysis is run on the
+numerical variables to choose some variables which exhibit strong and
+weak linear relationships.
+
+<img src="predictive_power_score_files/figure-gfm/unnamed-chunk-1-1.png" style="display: block; margin: auto;" />
+
+The following two variables are chosen:
+
+  - overallqual: Numerical variable which plot indicates strong positive
+    correlation
+  - miscval: Numerical variable which the EDA indicated near zero
+    variance
+
+The table below shows that none of the variables in their own right have
+a particularly high PPS score. However, the two variables indentified as
+being important (overallqual, garagefinish) seem to have a relatively
+high score, while miscval and utilities are virtually 0.
+
+|  Variable   |  PPS  |
+| :---------: | :---: |
+| overallqual | 42.5% |
+|   miscval   | 0.2%  |

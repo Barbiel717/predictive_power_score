@@ -326,3 +326,75 @@ f_PPS <-
     }
 
 ```
+
+Now that we have a PPS function set-up, the output can be tested on a handful of variables. A quick visual correlation analysis is run on the numerical variables to choose some variables which exhibit strong and weak linear relationships.
+
+```{r echo = FALSE, warning = FALSE, message = FALSE, fig.align="center", fig.height=12, fig.width=12}
+
+# Distribution of house prices
+cbind(
+      df_model %>%
+        select_if(is.numeric) %>%
+        select(-c(saleprice)),
+      df_model %>%
+        mutate(saleprice = log(saleprice)) %>%
+        select(saleprice)
+      ) %>%
+  gather(-saleprice, key = "var", value = "value")  %>% 
+  ggplot(aes(x = value, y = saleprice, col = saleprice)) +
+    geom_jitter() +
+    theme(axis.text.x = element_text(angle = 90),
+          plot.title = element_text(hjust = 0.5,
+                                    size = 20)) + 
+    geom_smooth(method = "lm") +
+    facet_wrap(~ var, scales = "free") +
+    ggtitle("Relationship with numeric predictors and log of 'saleprice'")
+
+```
+
+The following two variables are chosen:
+
+* overallqual: Numerical variable which plot indicates strong positive correlation
+* miscval: Numerical variable which the plot indicates near zero variance
+
+The table below shows that none of the variables in their own right have a particularly high PPS score. However, the two variables indentified as being important (overallqual, garagefinish) seem to have a relatively high score, while miscval and utilities are virtually 0.
+
+```{r test_pps, echo = FALSE, warning = FALSE, message = FALSE}
+
+# Isolate saleprice in training data  
+df_target <- 
+  df_model %>% 
+  filter(!is.na(saleprice)) %>% 
+  mutate(saleprice = log(saleprice)) %>%
+  select(saleprice)
+
+
+# Calculate PPS
+sapply(df_model %>% 
+         filter(!is.na(saleprice)) %>%
+         select(overallqual, 
+                miscval)
+         ,
+       function(var)
+         f_PPS(predictor = var, # predictor variable
+               target = df_target$saleprice, # target variable
+               model_mode = "regression", # regression or classification
+               evaluation_metric = "rmse", # prediction evaluation metrics
+               LB = 0, # Lower Bound e.g. RMSE perfect score is 0
+               grid_size = 5, # Size of tuning grid
+               folds = 10 # Folds in cross validation
+               )
+       ) %>%
+  as.data.frame() %>%
+  rownames_to_column() %>%
+  rename(Variable = rowname,
+         PPS = ".") %>%
+  mutate(PPS = percent(round(PPS,3))) %>%
+  kable(align = c('c', 'c'))  
+
+# Remove PPS
+rm(df_target)
+
+```
+
+
