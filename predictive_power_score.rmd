@@ -218,7 +218,7 @@ df_model <-
     step_modeimpute(all_nominal(), -all_outcomes()) %>% # mode impute nominal data
     step_YeoJohnson(vc_skew) %>%  # Increase symmetry
     step_normalize(all_numeric(), -all_outcomes()) %>% # centre & scale
-    step_dummy(all_nominal(), -all_outcomes()) %>% # Convert to dummy variables
+    #step_dummy(all_nominal(), -all_outcomes()) %>% # Convert to dummy variables
     step_zv(all_predictors()) %>% # Remove zero variance
     prep() %>%
     bake(df_model)
@@ -431,7 +431,7 @@ f_PPS <-
 
 Now that we have a PPS function set-up, the output can be tested on a couple of variables. A quick visual correlation analysis is run on the numerical variables to choose some variables which exhibit strong and weak linear relationships.
 
-```{r echo = FALSE, warning = FALSE, message = FALSE, fig.align="center", fig.height=12, fig.width=12}
+```{r corr_plot, echo = FALSE, warning = FALSE, message = FALSE, fig.align="center", fig.height=12, fig.width=12}
 
 # Distribution of house prices
 cbind(
@@ -475,7 +475,7 @@ df_target <-
 sapply(df_model %>% 
          filter(!is.na(saleprice)) %>%
          select(overallqual, 
-                miscval)
+                bsmtfinsf2)
          ,
        function(var)
          f_PPS(predictor = var, # predictor variable
@@ -526,14 +526,13 @@ system.time({
                  evaluation_metric = "rmse", # prediction evaluation metrics
                  LB = 0, # Lower Bound e.g. RMSE perfect score is 0
                  grid_size = 5, # Size of tuning grid
-                 folds = 10 # Folds in cross validation
+                 folds = 5 # Folds in cross validation
                  )
          ) %>%
     as.data.frame() %>%
     rownames_to_column() %>%
     rename(Variable = rowname,
-           PPS = ".") %>%
-    mutate(PPS = percent(round(PPS,3))) 
+           PPS = ".")
   
   # Remove PPS
   rm(df_target)
@@ -541,5 +540,19 @@ system.time({
 ```
 
 
+```{r full_pps, echo = FALSE, warning = FALSE, message = FALSE}
 
+# visualise distirbution of pps
+df_pps_full %>%
+  ggplot(aes(x = "PPS", y = PPS)) +
+    geom_boxplot(fill = "red")  +
+    theme(axis.text.x = element_text(angle = 90),
+          plot.title = element_text(hjust = 0.5,
+                                    size = 20)) + 
+    ggtitle("Predictor Distribution of PPS")
+
+
+
+
+```
 
