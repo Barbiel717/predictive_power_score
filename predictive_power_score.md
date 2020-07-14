@@ -1,4 +1,4 @@
-Untitled
+Feature Importance: Predictive Power Score
 ================
 registea
 13/07/2020
@@ -9,102 +9,26 @@ registea
 
 </center>
 
-<style type="text/css"> 
-
-body{ /* Normal  */ 
-      font-size: 14px; 
-  } 
-td {  /* Table  */ 
-  font-size: 12px; 
-} 
-h1.title { 
-  font-size: 38px; 
-  color: Red; 
-} 
-h1 { /* Header 1 */ 
-  font-size: 30px; 
-  color: Red; 
-} 
-h2 { /* Header 2 */ 
-    font-size: 26px; 
-  color: Red; 
-} 
-h3 { /* Header 3 */ 
-  font-size: 22px; 
-  font-family: "Aerial", Times, serif; 
-  color: Red; 
-} 
-code.r{ /* Code block */ 
-    font-size: 14px; 
-} 
-pre { /* Code block - determines code spacing between lines */ 
-    font-size: 14px; 
-} 
-</style>
-
 # Introduction
 
-This notebook is dedicated to exploring the feature selection aspect of
-the predictive modelling workflow. Specifically the Predictive Power
-Score (PPS) created by Florian Wetschoreck and posted on
+This notebook explores the Predictive Power Score (PPS) filter method
+created by Florian Wetschoreck and posted on
 [Medium](https://towardsdatascience.com/rip-correlation-introducing-the-predictive-power-score-3d90808b9598).
+The article describes the PPS as a data type agnostic normalised score
+of predictive power. The example in the article provided was written in
+python, this notebook implements the PPS in R, via a custom function.
 
-The house price prediction
+To explore the PPS, the house price prediction
 [dataset](https://www.kaggle.com/c/house-prices-advanced-regression-techniques)
-from kaggle is used as it represents a wide range of attributes of
-houses and their sale price, with the objective to predict the house
-price as accurately as possible using the RMSE evaluation metric. This
-dataset is almost perfect for exploring the PPS as the dataset is
-relatively large from a dimensional perspective but relatively small
-with regards to observations.
+from kaggle is used. This dataset is relatively large from a dimensional
+perspective but relatively small with regards to observations.
 
-This notebook will skip the exploratory analysis and feature engineering
-and jump straight to applying the PPS. If you are interested in seeing
-an exploratory analysis on this dataset, please follow this link to my
+This notebook will not focus on the exploratory analysis or feature
+engineering steps in the model building process, but jump directly to
+evaluating variable importance using this metric. If you are interested
+in a full analysis of this dataset, then please follow this link to my
 kaggle
 [kernal](https://www.kaggle.com/ar89dsl/house-price-eda-predictive-power-score).
-
-``` r
-# Modelling Framework
-library(tidymodels) # Predictive Framework
-library(caret)# Predictive Framework
-
-# Predictive Algorithms
-library(glmnet) # Glmnet regression
-library(rpart) # Decision Trees
-library(ranger) # Random Forests
-library(xgboost) # Gradient Boosting Machines
-library(kernlab) # SVR 
-
-# Statistical functionality
-library(e1071) # Summary distribution
-library(skimr) # Summarise dataframe
-library(naniar) # Missing data summary
-
-# Visualisations and formatting
-library(scales) # Number formats
-library(knitr) # Table
-library(gridExtra) # multiplot
-library(corrplot) # Correlation plot
-
-# Data handling Packages
-library(tidyverse) # Data handling/ Graphics
-library(data.table) # Data handling
-
-# Optimisation packages
-library(ompr) # MILP wrapper
-library(ROI) # Solver interface
-library(ROI.plugin.lpsolve)
-library(ompr.roi) # Link ROI and OMPR
-library(GA) # Genetic algorithm for feature selection
-
-# Parallel Processing
-library(parallel)
-library(doParallel)
-
-# Special transforms
-library(bestNormalize)
-```
 
 # Data Loading
 
@@ -132,3 +56,21 @@ df_model <-
   set_names(., tolower(names(.))) %>% # Convert all names to lower case
   select(-id) # Remove house id variable
 ```
+
+# Feature Selection
+
+A large feature set can have a significant impact on computation time
+and redundant features can have adverse effects on model performance.
+Some algorithms have feature selection/ dimensionality reduction
+included as part of the model development e.g. GLMNET. However, other
+methods such as multiple regression will need a helping hand. Feature
+selection can also aid in more advanced applications such as tree based
+methods. The PPS is a filter method,w
+
+  - Filter method: Predictive Power Score (PPS) - This will be applied
+    during engineering and pre-processing steps to assess the predictive
+    power of new variables. It will also be used to choose between
+    correlated predictors in linear regression
+  - Global method: Genetic Algorithms (GA) - Applied to the overall
+    model build and evaluation process for linear regression model to
+    give it a fighting chance
